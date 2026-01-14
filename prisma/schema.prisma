@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  cognitoId     String        @unique
+  name          String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  memberships   Membership[]
+}
+
+model Organization {
+  id            String        @id @default(cuid())
+  name          String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  memberships   Membership[]
+  roles         Role[]
+}
+
+/// Join table: one row = "this user is in this org"
+model Membership {
+  id             String        @id @default(cuid())
+  userId         String
+  organizationId String
+
+  // Simple RBAC: one role per user per org
+  roleId         String?
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           Role?         @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  
+  // Direct permissions for this specific membership (override/extend role permissions)
+  directPermissions MembershipPermission[]
+
+  @@unique([userId, organizationId]) // user can't join same org twice
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model Role {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String        // "admin", "member", "billing_manager"
+  description    String?
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships    Membership[]
+  permissions    RolePermission[]
+
+  @@unique([organizationId, name]) // "admin" unique within an org
+  @@index([organizationId])
+}
+
+model Permission {
+  id          String          @id @default(cuid())
+  key         String          @unique // e.g. "users.read", "billing.invoice.create"
+  description String?
+
+  roles       RolePermission[]
+  memberships MembershipPermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role         Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId]) // composite PK
+  @@index([permissionId])
+}
+
+/// Join table: direct permissions granted to a specific membership
+/// These permissions extend or override the role's default permissions
+model MembershipPermission {
+  membershipId String
+  permissionId String
+
+  createdAt    DateTime    @default(now())
+
+  membership   Membership  @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([membershipId, permissionId])
+  @@index([permissionId])
+  @@index([membershipId])
+}
