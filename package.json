@@ -1,7 +1,7 @@
 {
-  "name": "pozial-api",
+  "name": "service-api-boilerplate-rbac",
   "version": "1.0.0",
-  "description": "Production-grade API with RBAC using Fastify, Prisma, and Zod",
+  "description": "Service API boilerplate with Fastify, Prisma, Zod, and Role-Based Access Control (RBAC)",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
